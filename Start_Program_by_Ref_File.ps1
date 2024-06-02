@@ -29,6 +29,42 @@
 $Global:Interval = 2
 $Global:RefFilePath = "D:\TEST\Listener\Flag.txt"
 $Global:LogFile = "D:\TEST\Listener\Log.txt"
+$Global:ProgToStart = "cmd.exe"
+$Global:maxSize = 1048576 # 1 MB in bytes
+
+# Function to remove the first N lines from the file
+function Remove-FirstLines {
+    param (
+        [string]$file,
+        [int]$linesToRemove
+    )
+    
+    # Read the file into an array, skipping the first N lines
+    $content = Get-Content $file | Select-Object -Skip $linesToRemove
+    
+    # Write the remaining lines back to the file
+    Set-Content -Path $file -Value $content
+}
+
+# Check if the file size exceeds the maximum size
+function Check-FileSize {
+
+    $fileSize = (Get-Item $LogFile).Length
+
+    if ($fileSize -gt $maxSize) {
+        # Calculate the number of lines to remove (this is a simple example)
+        $linesToRemove = 500
+    
+        # Remove the first N lines from the file
+        Remove-FirstLines -file $LogFile -linesToRemove $linesToRemove
+    
+        Write-Host "The first $linesToRemove lines have been removed from the file."
+    }
+    else {
+        Write-Host "The file size is within the limit."
+    }
+
+}
 
 # Function to log messages with a timestamp for better traceability.
 function Write-Log {
@@ -52,7 +88,8 @@ function Start-Program {
         Write-Log "Program started: $ProgramPath"
         Write-Log "Process ID: $($process.Id)"
         Clear-Content -Path $Global:RefFilePath
-    } catch {
+    }
+    catch {
         Write-Log "Failed to start program: $ProgramPath. Error: $_"
     }
 }
@@ -69,16 +106,18 @@ function Monitor-ReferenceFile {
         if ($content.Length -ge 1) {
             switch ($content) {
                 "Scanner" {
-                    Start-Program -ProgramPath "cmd.exe"
+                    Start-Program -ProgramPath $ProgToStart
                 }
                 default {
                     Write-Log "No valid program specified in $FilePath"
                 }
             }
-        } else {
+        }
+        else {
             Write-Log "Reference file is empty: $FilePath"
         }
-    } catch {
+    }
+    catch {
         Write-Log "Error reading from file: $FilePath. Error: $_"
     }
 }
@@ -86,6 +125,7 @@ function Monitor-ReferenceFile {
 # Main operational loop to continuously monitor and act.
 function Main-Loop {
     while ($true) {
+        Check-FileSize
         Monitor-ReferenceFile -FilePath $Global:RefFilePath
         Start-Sleep -Seconds $Global:Interval
     }
